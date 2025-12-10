@@ -18,7 +18,7 @@ def encode_image_base64(image_path):
 def capture_image():
     wait_for_object()  # Wait until movement seen
 
-    cam = cv2.VideoCapture(0, cv2.CAP_DSHOW) # Connect to camera
+    cam = cv2.VideoCapture(0) # Connect to camera  #cam = cv2.VideoCapture(0,cv2.CAP_DSHOW)
     time.sleep(1) # Let camera startup
 
     ret, frame = cam.read() # Capture Frame
