@@ -3,8 +3,8 @@ import requests
 from datetime import datetime
 import uuid
 import time
-import base64 #For decoding image
-import cv2 #For Sensor
+import base64                                       #For decoding image
+import cv2                                          #For Sensor
 import logging
 
 
@@ -20,7 +20,7 @@ logging.basicConfig(
 log = logging.getLogger()
 
 
-SERVER_URL = "http://127.0.0.1:8000/ingest"
+SERVER_URL = "http://172.20.10.3:8000/ingest"       # Can change
 
 
 def encode_image_base64(image_path):
@@ -41,8 +41,8 @@ def capture_image():
         log.error("Camera is failing")
         raise Exception("Camera is failing")
 
-    log.info("Opening camera for capture...")
-    cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # MAKE SURE TO INCLUDE CAP_DSHOW ANY TIME YOU SET UP CAMERA(COST ME 3 HOURS)
+    log.info("Opening camera for capture...")           #can be just 0 for linus
+    cam = cv2.VideoCapture(0, cv2.CAP_DSHOW)        # MAKE SURE TO INCLUDE CAP_DSHOW ANY TIME YOU SET UP CAMERA(COST ME 3 HOURS), 
     time.sleep(1)
 
     ret, frame = cam.read()
@@ -105,7 +105,7 @@ def wait_for_object(threshold=50000, settle_time=2):
     log.info("Waiting for motion... Press Control C on terminal pad to stop or click q")
     time.sleep(1)
 
-    for _ in range(30):             #Get first couple frames out of the way
+    for _ in range(30):                         #Get first couple frames out of the way
         cam.read()
 
     ret, frame1 = cam.read()
@@ -125,7 +125,7 @@ def wait_for_object(threshold=50000, settle_time=2):
 
     while True:
 
-        # Motion detection logic
+                                                        # Motion detection logic
         diff = cv2.absdiff(frame1, frame2)
         gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (21, 21), 0)

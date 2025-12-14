@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 RecievedPictures
 Server/RecievedPictures/
+.vs

@@ -1,154 +1,75 @@
--- CREATE TABLE ingestion_log (
---     ingestion_id   UUID PRIMARY KEY,
---     device_id      UUID NOT NULL,
---     raw_json       JSONB NOT NULL,
---     received_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
---     process_status VARCHAR(20) NOT NULL CHECK (process_status IN ('pending', 'success', 'failure')),
---     error_message  TEXT
--- );
-
-CREATE TABLE location (
-    location_id UUID PRIMARY KEY,
-    site_name VARCHAR(100) NOT NULL,
-    area_description TEXT,
-    latitude NUMERIC(9, 6),
-    longitude NUMERIC(9, 6)
+CREATE TABLE request_log_rejects (
+    request_id SERIAL PRIMARY KEY,
+    request_blob JSONB, 
+    log_timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE device (
-    device_id UUID PRIMARY KEY,
-    device_name VARCHAR(100) NOT NULL,
-    device_type VARCHAR(50) NOT NULL,
-    location_id UUID REFERENCES location(location_id),
-    status VARCHAR(20) NOT NULL DEFAULT 'active' , -- e.g., 'active', 'offline', 'error'
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
+ CREATE TABLE IF NOT EXISTS device (
+      device_id VARCHAR(255) PRIMARY KEY,
+      device_name VARCHAR(255) NOT NULL,
+      device_type VARCHAR(255) NOT NULL
+  );
 
-CREATE TABLE image (
-    image_id UUID PRIMARY KEY,
-    ingestion_id UUID REFERENCES ingestion_log(ingestion_id),
-    capture_timestamp TIMESTAMPTZ,
-    image_path VARCHAR(255) NOT NULL, -- URL to S3/GCS
-    resolution_x INTEGER,
-    resolution_y INTEGER,
-    checksum VARCHAR(64) UNIQUE NOT NULL, -- SHA256 or similar
-    format VARCHAR(10),
-    confirmed_class VARCHAR(50) NULL -- Manual confirmation field
-);
+  CREATE TABLE IF NOT EXISTS image_data (
+      ingestion_id UUID PRIMARY KEY,
+      device_id VARCHAR(255) NOT NULL,
+      timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      image_data BYTEA,
+      created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      created_by VARCHAR(255) DEFAULT 'system',
+      CONSTRAINT fk_device_id_data
+        FOREIGN KEY (device_id)
+        REFERENCES device (device_id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE
+  );
 
-CREATE TABLE prediction (
-    prediction_id UUID PRIMARY KEY,
-    image_id UUID REFERENCES image(image_id),
-    predicted_class VARCHAR(50) NOT NULL,
-    probability NUMERIC(5, 4) NOT NULL,
-    predicted_json JSONB,
-    predicted_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
+  CREATE TABLE IF NOT EXISTS image (
+      image_id UUID PRIMARY KEY,
+      ingestion_id UUID,
+      image_location VARCHAR(255) NOT NULL,
+	  predicted_value VARCHAR(255),
+      predicted_weightage FLOAT,
+	  predicted_probabilities_all DOUBLE PRECISION[],
+	  actual_value VARCHAR(255),
+      created_date TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      created_by VARCHAR(255) DEFAULT 'system', 
+      modified_date TIMESTAMP WITHOUT TIME ZONE,
+      modified_by VARCHAR(255) DEFAULT 'system',
+      CONSTRAINT fk_ingestion
+        FOREIGN KEY (ingestion_id)
+        REFERENCES image_data (ingestion_id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+  );
 
 
-CREATE TABLE etl_job_log (
-    etl_id UUID PRIMARY KEY,
-    job_name VARCHAR(100) NOT NULL,
-    started_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMPTZ,
-    status VARCHAR(20) NOT NULL, -- 'running', 'success', 'failure'
-    total_records_processed INTEGER
-);
+INSERT INTO device (device_id, device_name, device_type)
+VALUES ('CAM-439-EAST', 'Assembly Line Camera 1', 'Image Capture');
 
--- A. LOCATION
-INSERT INTO location (location_id, site_name, area_description, latitude, longitude)
+
+INSERT INTO image_data (ingestion_id, device_id, timestamp, image_data, created_by)
+VALUES ('43a5e9b7-6c2d-4f1e-8a0b-9c3f4d5e6f7a', 'CAM-439-EAST', CURRENT_TIMESTAMP, E'\\x89504e470d0a1a0a', 'ingestion_script_v2.1');
+
+INSERT INTO image (image_id, ingestion_id, image_location, predicted_value, predicted_weightage, predicted_probabilities_all, actual_value, created_by)
 VALUES (
-    'a1b2c3d4-0000-4000-8000-000000000001', 
-    'Recycling Station 1', 
-    'Loading dock near main warehouse', 
-    40.256789, 
-    -74.512345
+    '22c1b4d0-a7e8-4b9c-c0d1-e2f3a4b5c6d7',
+    '43a5e9b7-6c2d-4f1e-8a0b-9c3f4d5e6f7a',
+    's3://img-bucket/cam439/2025/22c1b4d0.jpg',
+    'Defective_Part',
+    0.985,
+    '{0.985, 0.010, 0.005}',
+    NULL,
+    'Predictor'
 );
 
-
--- B. DEVICE
-INSERT INTO device (device_id, device_name, device_type, location_id, status, created_at, updated_at)
-VALUES (
-    'a1b2c3d4-0000-4000-8000-000000000002', 
-    'Pi_Cam_005', 
-    'Raspberry Pi Camera', 
-    'a1b2c3d4-0000-4000-8000-000000000001', -- FK: location_id
-    'active', 
-    '2025-12-09 10:00:00 EST', 
-    '2025-12-09 15:30:00 EST'
-);
-
-
--- C. IMAGE
--- NOTE: Requires an ingestion_log entry to exist for 'a1b2c3d4-0000-4000-8000-000000000003'
-INSERT INTO image (image_id, ingestion_id, capture_timestamp, image_path, resolution_x, resolution_y, checksum, format, confirmed_class)
-VALUES (
-    'a1b2c3d4-0000-4000-8000-000000000004', 
-    '4bb1e26c-b3cb-4ef7-9ec6-ef54b7d956b7', -- FK: ingestion_log_id
-    '2025-12-09 15:35:00 EST', 
-    's3://waste-data-bucket/raw/img_0004.jpg', 
-    224, 
-    224, 
-    '0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t6u7v8w9x0y1z2a3b4c5d6e7f8', -- Unique hash
-    'jpeg', 
-    NULL
-);
-
-
--- D. PREDICTION
-INSERT INTO prediction (prediction_id, image_id, predicted_class, probability, predicted_json, predicted_at)
-VALUES (
-    'a1b2c3d4-0000-4000-8000-000000000005', 
-    'a1b2c3d4-0000-4000-8000-000000000004', -- FK: image_id
-    'plastic', 
-    0.9850, 
-    '{"top_3": [{"class": "plastic", "prob": 0.985}, {"class": "metal", "prob": 0.010}]}', 
-    '2025-12-09 15:35:15 EST'
-);
-
-
--- E. ETL_JOB_LOG
-INSERT INTO etl_job_log (etl_id, job_name, started_at, ended_at, status, total_records_processed)
-VALUES (
-    'a1b2c3d4-0000-4000-8000-000000000006', 
-    'Daily_Image_Ingest_Cleanup', 
-    '2025-12-09 01:00:00 EST', 
-    '2025-12-09 01:05:30 EST', 
-    'success', 
-    4500
-);
+INSERT INTO request_log_rejects (request_blob)
+VALUES ('{"error_code": 400, "message": "Invalid device ID format.", "received_payload": {"dev_id": "bad_format", "data": "..."}}');
 
 
 
 
-
+SELECT * FROM request_log_rejects;
 SELECT * FROM device;
-SELECT * FROM location;
-SELECT * FROM etl_job_log;
-SELECT * FROM ingestion_log;
+SELECT * FROM image_data;
 SELECT * FROM image;
-SELECT * FROM prediction;
-
-
-
-
-
--- CREATE TABLE ingestion_log (
---     ingestion_id   UUID PRIMARY KEY,
---     device_id      UUID NOT NULL,
---     raw_json       JSONB NOT NULL,
---     received_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
---     process_status VARCHAR(20) NOT NULL CHECK (process_status IN ('pending', 'success', 'failure')),
---     error_message  TEXT
--- );
-
-ALTER TABLE ingestion_log
-ADD COLUMN predicted_class VARCHAR(50);
-
-ALTER TABLE ingestion_log
-ADD COLUMN confidence DOUBLE PRECISION;
-
-SELECT *
-FROM ingestion_log;
-
